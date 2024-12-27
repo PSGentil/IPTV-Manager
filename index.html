@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Clientes IPTV</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+        body { font-family: 'Poppins', sans-serif; background-color: #f1f3f5; color: #333; margin: 0; padding: 0; }
+        .container { width: 80%; margin: 30px auto; background-color: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); position: relative; }
+        h1 { text-align: center; color: #6c5ce7; font-size: 32px; font-weight: 600; margin-bottom: 25px; }
+        .tabs { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .tab { padding: 12px 30px; background-color: #6c5ce7; color: white; border-radius: 30px; cursor: pointer; font-weight: 600; transition: background-color 0.3s, transform 0.3s; }
+        .tab:hover { transform: scale(1.05); background-color: #574ae2; }
+        .tab.active { background-color: #4834d4; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        input[type="text"], input[type="date"], input[type="number"], input[type="email"], select, button { display: block; width: 100%; margin: 10px 0; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ddd; }
+        button { background-color: #6c5ce7; color: white; font-size: 16px; padding: 12px; border-radius: 8px; border: none; cursor: pointer; transition: background-color 0.3s, transform 0.2s; }
+        button:hover { background-color: #4834d4; }
+        button:active { transform: scale(0.98); }
+        .notification { display: none; padding: 15px; margin: 15px 0; border-radius: 8px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .notification.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .notification.active { display: block; }
+        #client-list-container li { list-style-type: none; padding: 15px; margin: 10px 0; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); }
+        #client-list-container li div { width: 70%; }
+        #client-list-container li button.whatsapp { background-color: #25D366; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; }
+        #client-list-container li button.whatsapp:hover { background-color: #1ebe5d; }
+        #client-list-container li button.remove { background-color: #ff6b6b; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; }
+        #client-list-container li button.remove:hover { background-color: #ff4c4c; }
+        #client-list-container li button.edit { background-color: #6c5ce7; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; }
+        #client-list-container li button.edit:hover { background-color: #4834d4; }
+        .date-filter { display: flex; gap: 10px; margin-top: 15px; }
+        .date-filter input { width: 45%; }
+        .dashboard { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; }
+        .dashboard-item { background-color: #f9f9f9; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); text-align: center; flex: 1; min-width: 200px; cursor: pointer; }
+        .dashboard-item h3 { font-size: 18px; color: #6c5ce7; margin-bottom: 10px; }
+        .dashboard-item p { font-size: 24px; font-weight: 600; color: #333; }
+        .status.active { color: #28a745; font-weight: bold; }
+        .status.inactive { color: #dc3545; font-weight: bold; }
+        .datetime-panel { position: fixed; top: 10px; right: 10px; background-color: #6c5ce7; color: white; padding: 10px 15px; border-radius: 8px; font-size: 14px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
+        .edit-mode { display: flex; flex-direction: column; gap: 10px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #fff; color: #333; border-radius: 8px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: auto; max-width: 600px; }
+        .modal-content h2 { color: #6c5ce7; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 20px; }
+        .modal-content ul { list-style-type: none; padding: 0; margin: 0; }
+        .modal-content li { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 16px; }
+        .modal-content li:last-child { margin-bottom: 0; }
+        .modal-content button { margin-top: 20px; }
+    </style>
+    <!-- Inclua a biblioteca SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerenciador de Clientes IPTV</h1>
+        <div class="notification" id="notification"></div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('add-client')">Adicionar Cliente</div>
+            <div class="tab" onclick="showTab('client-list')">Lista de Clientes</div>
+            <div class="tab" onclick="showTab('file-management')">Gerenciar Arquivos</div>
+            <div class="tab" onclick="showTab('dashboard')">Dashboard</div>
+            <div class="tab" onclick="showTab('settings')">Configurações</div>
+        </div>
+
+        <div id="add-client" class="tab-content active">
+            <h2>Adicionar Novo Cliente</h2>
+            <input type="text" id="client-name" placeholder="Nome do Cliente" required>
+            <input type="text" id="client-phone" placeholder="Telefone do Cliente" required>
+            <input type="text" id="client-user" placeholder="Usuário do Cliente" required>
+            <select id="client-app" required>
+                <option value="" disabled selected>Selecione o App</option>
+                <option value="XCIPTV">XCIPTV</option>
+                <option value="LUMINA">LUMINA</option>
+                <option value="9XTREAM">9XTREAM</option>
+                <option value="SMARTERS">SMARTERS</option>
+                <option value="IBO">IBO</option>
+                <option value="XCLOUD">XCLOUD</option>
+                <option value="EASY PLAYER">EASY PLAYER</option>
+            </select>
+            <select id="client-plan" required>
+                <option value="" disabled selected>Selecione o Plano</option>
+                <option value="Mensal">Mensal</option>
+                <option value="Anual">Anual</option>
+            </select>
+            <input type="date" id="client-expiry" placeholder="Data de Expiração" required>
+            <button onclick="addClient()">Adicionar Cliente</button>
+        </div>
+
+        <div id="client-list" class="tab-content">
+            <h2>Lista de Clientes</h2>
+            <input type="text" id="search-bar" placeholder="Buscar cliente por nome, usuário ou telefone" onkeypress="handleKeyPress(event)">
+            <div class="date-filter">
+                <input type="date" id="start-date" placeholder="Data inicial">
+                <input type="date" id="end-date" placeholder="Data final">
+                <button onclick="applyDateFilter()">Aplicar Filtro de Data</button>
+            </div>
+            <ul id="client-list-container"></ul>
+        </div>
+
+        <div id="file-management" class="tab-content">
+            <h2>Gerenciar Arquivos</h2>
+            <input type="file" id="file-upload" accept=".json">
+            <button onclick="uploadFile()">Fazer Upload</button>
+            <button onclick="downloadJson()">Baixar JSON</button>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="tab-content">
+            <h2>Dashboard</h2>
+            <div class="dashboard">
+                <div class="dashboard-item" onclick="downloadAllClients()">
+                    <h3>Total de Clientes:</h3>
+                    <p id="total-clients">0</p>
+                </div>
+                <div class="dashboard-item" onclick="showClientsActive()">
+                    <h3>Clientes Ativos:</h3>
+                    <p id="active-clients">0</p>
+                </div>
+                <div class="dashboard-item" onclick="showClientsInactive()">
+                    <h3>Clientes Inativos:</h3>
+                    <p id="inactive-clients">0</p
+                ></div>
+                <div class="dashboard-item">
+                    <h3>Total de Lucro:</h3>
+                    <p id="total-profit">R$ 0,00</p>
+                </div>
+                <div class="dashboard-item">
+                    <h3>Total de Faturamento:</h3>
+                    <p id="total-revenue">R$ 0,00</p>
+                </div>
+                <div class="dashboard-item" onclick="showClientsDueToday()">
+                    <h3>Clientes que vencem hoje:</h3>
+                    <p id="clients-due-today">0</p>
+                </div>
+                <div class="dashboard-item" onclick="showClientsDueTomorrow()">
+                    <h3>Clientes que vencem amanhã:</h3>
+                    <p id="clients-due-tomorrow">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings" class="tab-content">
+            <h2>Configurações de Preço, Custos e Chave Pix</h2>
+            <div class="price-setting">
+                <label for="price-monthly">Preço do Plano Mensal:</label>
+                <input type="number" id="price-monthly" placeholder="Digite o preço mensal" min="0">
+            </div>
+            <div class="price-setting">
+                <label for="price-annual">Preço do Plano Anual:</label>
+                <input type="number" id="price-annual" placeholder="Digite o preço anual" min="0">
+            </div>
+            <div class="cost-setting">
+                <label for="cost-monthly">Custo do Plano Mensal:</label>
+                <input type="number" id="cost-monthly" placeholder="Digite o custo mensal" min="0">
+            </div>
+            <div class="cost-setting">
+                <label for="cost-annual">Custo do Plano Anual:</label>
+                <input type="number" id="cost-annual" placeholder="Digite o custo anual" min="0">
+            </div>
+            <div class="pix-setting">
+                <label for="pix-key">Chave Pix (CPF, Telefone, CNPJ, E-mail):</label>
+                <input type="text" id="pix-key" placeholder="Digite a chave Pix" pattern="(\d{3}\.\d{3}\.\d{3}-\d{2})|(\(\d{2}\) \d{9})|(\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})|([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})">
+            </div>
+            <button onclick="saveSettings()">Salvar Configurações</button>
+        </div>
+    </div>
+
+    <!-- Modal para exibir a lista de clientes que vencem hoje ou amanhã -->
+    <div id="clients-due-modal" class="modal">
+        <div class="modal-content">
+            <h2 id="clients-due-title">Clientes</h2>
+            <ul id="clients-due-list"></ul>
+            <button id="download-excel" onclick="downloadClientsDue()">Baixar Excel</button>
+            <button onclick="closeClientsDueModal()">Fechar</button>
+        </div>
+    </div>
+
+    <div class="datetime-panel" id="datetime-panel"></div>
+
+    <script>
+        let data = JSON.parse(localStorage.getItem('data')) || { clients: [], settings: { monthly: 0, annual: 0, costMonthly: 0, costAnnual: 0, pixKey: '' } };
+        let clientToRemoveIndex = null;
+        let currentClientsDue = [];
+
+        function showTab(tabId) {
+            const tabs = document.querySelectorAll('.tab-content');
+            const tabButtons = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            tabButtons.forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab[onclick="showTab('${tabId}')"]`).classList.add('active');
+            if (tabId === 'dashboard') {
+                updateDashboard();
+            }
+            if (tabId === 'settings') {
+                document.getElementById('price-monthly').value = data.settings.monthly || 0;
+                document.getElementById('price-annual').value = data.settings.annual || 0;
+                document.getElementById('cost-monthly').value = data.settings.costMonthly || 0;
+                document.getElementById('cost-annual').value = data.settings.costAnnual || 0;
+                document.getElementById('pix-key').value = data.settings.pixKey || '';
+            }
+            if (tabId === 'client-list') {
+                displayClients();
+            }
+        }
+
+        function addClient() {
+            const name = document.getElementById('client-name').value;
+            const phone = document.getElementById('client-phone').value;
+            const user = document.getElementById('client-user').value;
+            const app = document.getElementById('client-app').value;
+            const plan = document.getElementById('client-plan').value;
+            const expiry = document.getElementById('client-expiry').value;
+            const isActive = new Date(expiry) > new Date() ? 'Ativo' : 'Inativo';
+
+            if (!name || !phone || !user || !app || !plan || !expiry) {
+                showNotification('Todos os campos são obrigatórios.', 'error');
+                return;
+            }
+
+            const newClient = { name, phone, user, app, plan, expiry: expiry.split('-').join('/'), isActive };
+            data.clients.push(newClient);
+            localStorage.setItem('data', JSON.stringify(data));
+
+            showNotification('Cliente adicionado com sucesso!', 'success');
+            clearClientForm();
+            displayClients();
+        }
+
+        function displayClients(filteredClients = data.clients) {
+            const clientList = document.getElementById('client-list-container');
+            clientList.innerHTML = '';
+            filteredClients.forEach((client, index) => {
+                const listItem = document.createElement('li');
+                listItem.id = `client-${index}`;
+                listItem.innerHTML = 
+                    `<div>
+                        <strong>Nome:</strong> ${client.name}<br>
+                        <strong>Telefone:</strong> ${client.phone}<br>
+                        <strong>Usuário:</strong> ${client.user}<br>
+                        <strong>App:</strong> ${client.app}<br>
+                        <strong>Plano:</strong> ${client.plan}<br>
+                        <strong>Data de Expiração:</strong> ${client.expiry}<br>
+                        <strong>Status:</strong> <span class="status ${client.isActive === 'Ativo' ? 'active' : 'inactive'}">${client.isActive}</span>
+                    </div>
+                    <button class="whatsapp" onclick="sendWhatsAppMessage('${client.phone}', '${client.name}', '${client.expiry}', '${client.user}', '${client.plan}')">Enviar WhatsApp</button>
+                    <button class="edit" onclick="editClient(${index})">Editar</button>
+                    <button class="remove" onclick="confirmRemoveClient(${index})">Remover Cliente</button>
+                `;
+                clientList.appendChild(listItem);
+            });
+        }
+
+        function editClient(index) {
+            const client = data.clients[index];
+
+            const editForm = document.createElement('div');
+            editForm.className = 'edit-mode';
+            editForm.innerHTML = 
+                `<input type="text" value="${client.name}" id="edit-name-${index}">
+                <input type="text" value="${client.phone}" id="edit-phone-${index}">
+                <input type="text" value="${client.user}" id="edit-user-${index}">
+                <input type="date" value="${client.expiry.split('/').reverse().join('-')}" id="edit-expiry-${index}">
+                <button onclick="saveClientEdit(${index})">Salvar Alterações</button>
+            `;
+
+            const listItem = document.getElementById(`client-${index}`);
+            listItem.innerHTML = '';
+            listItem.appendChild(editForm);
+            }
+
+            function saveClientEdit(index) {
+            const newName = document.getElementById(`edit-name-${index}`).value;
+            const newPhone = document.getElementById(`edit-phone-${index}`).value;
+            const newUser = document.getElementById(`edit-user-${index}`).value;
+            const newExpiry = document.getElementById(`edit-expiry-${index}`).value;
+
+            data.clients[index].name = newName;
+            data.clients[index].phone = newPhone;
+            data.clients[index].user = newUser;
+            data.clients[index].expiry = newExpiry.split('-').join('/');
+            data.clients
+                [index].isActive = new Date(newExpiry) > new Date() ? 'Ativo' : 'Inativo';
+
+                            localStorage.setItem('data', JSON.stringify(data));
+                            displayClients();
+                            showNotification('Cliente editado com sucesso!', 'success');
+                        }
+
+                        function confirmRemoveClient(index) {
+                            clientToRemoveIndex = index;
+                            document.getElementById('clients-due-modal').style.display = 'flex';
+                        }
+
+                        function closeClientsDueModal() {
+                            document.getElementById('clients-due-modal').style.display = 'none';
+                        }
+
+                        function removeClient(index) {
+                            data.clients.splice(index, 1);
+                            localStorage.setItem('data', JSON.stringify(data));
+                            showNotification('Cliente removido com sucesso!', 'success');
+                            displayClients();
+                        }
+
+                        function handleKeyPress(event) {
+                            if (event.keyCode === 13) {
+                                filterClients();
+                            }
+                        }
+
+                        function filterClients() {
+                            const searchTerm = document.getElementById('search-bar').value.toLowerCase();
+                            const filteredClients = data.clients.filter(client =>
+                                client.name.toLowerCase().includes(searchTerm) ||
+                                client.phone.toLowerCase().includes(searchTerm) ||
+                                client.user.toLowerCase().includes(searchTerm)
+                            );
+                            displayClients(filteredClients);
+                        }
+
+                        function applyDateFilter() {
+                            const startDate = document.getElementById('start-date').value;
+                            const endDate = document.getElementById('end-date').value;
+                            const filteredClients = data.clients.filter(client => {
+                                const expiryDate = new Date(client.expiry);
+                                return expiryDate >= new Date(startDate) && expiryDate <= new Date(endDate);
+                            });
+                            displayClients(filteredClients);
+                        }
+
+                        function updateDashboard() {
+                            const today = new Date();
+                            const tomorrow = new Date();
+                            tomorrow.setDate(today.getDate() + 1);
+
+                            const totalClients = data.clients.length;
+                            const activeClients = data.clients.filter(client => new Date(client.expiry) > today).length;
+                            const inactiveClients = totalClients - activeClients;
+
+                            const clientsDueToday = data.clients.filter(client => {
+                                const expiryDate = new Date(client.expiry);
+                                return expiryDate.toDateString() === today.toDateString();
+                            }).length;
+
+                            const clientsDueTomorrow = data.clients.filter(client => {
+                                const expiryDate = new Date(client.expiry);
+                                return expiryDate.toDateString() === tomorrow.toDateString();
+                            }).length;
+
+                            const totalRevenue = data.clients.reduce((sum, client) => sum + (client.plan === 'Mensal' ? parseFloat(data.settings.monthly) : parseFloat(data.settings.annual)), 0);
+                            const totalCost = data.clients.reduce((sum, client) => sum + (client.plan === 'Mensal' ? parseFloat(data.settings.costMonthly) : parseFloat(data.settings.costAnnual)), 0);
+                            const totalProfit = totalRevenue - totalCost;
+
+                            document.getElementById('total-clients').textContent = totalClients;
+                            document.getElementById('active-clients').textContent = activeClients;
+                            document.getElementById('inactive-clients').textContent = inactiveClients;
+                            document.getElementById('total-profit').textContent = `R$ ${totalProfit.toFixed(2)}`;
+                            document.getElementById('total-revenue').textContent = `R$ ${totalRevenue.toFixed(2)}`;
+                            document.getElementById('clients-due-today').textContent = clientsDueToday;
+                            document.getElementById('clients-due-tomorrow').textContent = clientsDueTomorrow;
+                        }
+
+                        function showClientsDueToday() {
+                            const today = new Date();
+                            currentClientsDue = data.clients.filter(client => {
+                                const expiryDate = new Date(client.expiry);
+                                return expiryDate.toDateString() === today.toDateString();
+                            });
+                            displayClientsDueModal('Clientes que vencem hoje', currentClientsDue);
+                        }
+
+                        function showClientsDueTomorrow() {
+                            const tomorrow = new Date();
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            currentClientsDue = data.clients.filter(client => {
+                                const expiryDate = new Date(client.expiry);
+                                return expiryDate.toDateString() === tomorrow.toDateString();
+                            });
+                            displayClientsDueModal('Clientes que vencem amanhã', currentClientsDue);
+                        }
+
+                        function showClientsActive() {
+                            const activeClients = data.clients.filter(client => client.isActive === 'Ativo');
+                            currentClientsDue = activeClients;
+                            displayClientsDueModal('Clientes Ativos', activeClients);
+                        }
+
+                        function showClientsInactive() {
+                            const inactiveClients = data.clients.filter(client => client.isActive === 'Inativo');
+                            currentClientsDue = inactiveClients;
+                            displayClientsDueModal('Clientes Inativos', inactiveClients);
+                        }
+
+                        function displayClientsDueModal(title, clients) {
+                            document.getElementById('clients-due-title').textContent = title;
+                            const clientsDueList = document.getElementById('clients-due-list');
+                            clientsDueList.innerHTML = '';
+                            clients.forEach(client => {
+                                const listItem = document.createElement('li');
+                                listItem.innerHTML = 
+                                    `<strong>Nome:</strong> ${client.name}<br>
+                                    <strong>Telefone:</strong> ${client.phone}<br>
+                                    <strong>Usuário:</strong> ${client.user}<br>
+                                    <strong>Expiração:</strong> ${client.expiry}<br>
+                                    <strong>Status:</strong> <span class="status ${client.isActive === 'Ativo' ? 'active' : 'inactive'}">${client.isActive}</span>`;
+                                clientsDueList.appendChild(listItem);
+                            });
+                            document.getElementById('clients-due-modal').style.display = 'flex';
+                        }
+
+                        function downloadClientsDue() {
+                            const worksheet = XLSX.utils.json_to_sheet(currentClientsDue, {
+                                header: ['Nome', 'Telefone', 'Usuário', 'App', 'Plano', 'Expiração', 'Status']
+                            });
+                            const workbook = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes Vencendo");
+                            XLSX.writeFile(workbook, "clientes_vencendo.xlsx");
+                        }
+
+                        function downloadAllClients() {
+                            const worksheet = XLSX.utils.json_to_sheet(data.clients, {
+                                header: ['Nome', 'Telefone', 'Usuário', 'App', 'Plano', 'Expiração', 'Status']
+                            });
+                            const workbook = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(workbook, worksheet, "Todos os Clientes");
+                            XLSX.writeFile(workbook, "todos_clientes.xlsx");
+                        }
+
+                        function showNotification(message, type = 'success') {
+                            const notification = document.getElementById('notification');
+                            notification.className = `notification ${type} active`;
+                            notification.innerHTML = message;
+                            setTimeout(() => notification.classList.remove('active'), 3000);
+                        }
+
+                        function clearClientForm() {
+                            document.getElementById('client-name').value = '';
+                            document.getElementById('client-phone').value = '';
+                            document.getElementById('client-user').value = '';
+                            document.getElementById('client-app').value = '';
+                            document.getElementById('client-plan').value = '';
+                            document.getElementById('client-expiry').value = '';
+                        }
+
+                        function sendWhatsAppMessage(phone, name, expiry, user, plan) {
+                            const planPrice = plan === 'Mensal' ? data.settings.monthly : data.settings.annual;
+                            const message = `Olá, ${name},\n\nSeu plano de IPTV de R$${planPrice},00 expira em ${expiry}.\nUsuário: ${user}.\nPara renovar, faça o pagamento via Pix na chave: ${data.settings.pixKey}.\nEnvie o comprovante para evitar o bloqueio.`;
+                            const encodedMessage = encodeURIComponent(message);
+                            const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+                            window.open(whatsappUrl, '_blank');
+                        }
+
+                        function saveSettings() {
+                            data.settings.monthly = document.getElementById('price-monthly').value || 0;
+                            data.settings.annual = document.getElementById('price-annual').value || 0;
+                            data.settings.costMonthly = document.getElementById('cost-monthly').value || 0;
+                            data.settings.costAnnual = document.getElementById('cost-annual').value || 0;
+                            data.settings.pixKey = document.getElementById('pix-key').value || '';
+                            localStorage.setItem('data', JSON.stringify(data));
+                            showNotification('Configurações salvas com sucesso!', 'success');
+                        }
+
+                        function uploadFile() {
+                            const fileInput = document.getElementById('file-upload');
+                            const file = fileInput.files[0];
+                            if (file) {
+                                const reader = new FileReader();
+                                reader.onload = function(event) {
+                                    data = JSON.parse(event.target.result);
+                                    localStorage.setItem('data', JSON.stringify(data));
+                                    showTab('dashboard');
+                                    showNotification('Arquivo carregado com sucesso!', 'success');
+                                };
+                                reader.readAsText(file);
+                            }
+                        }
+
+                        function downloadJson() {
+                            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+                            const downloadAnchorNode = document.createElement('a');
+                            downloadAnchorNode.setAttribute("href", dataStr);
+                            downloadAnchorNode.setAttribute("download", "data.json");
+                            document.body.appendChild(downloadAnchorNode);
+                            downloadAnchorNode.click();
+                            downloadAnchorNode.remove();
+                        }
+
+                        function updateDateTime() {
+                            const now = new Date();
+                            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                            const dateString = now.toLocaleDateString('pt-BR', options);
+                            const timeString = now.toLocaleTimeString('pt-BR');
+                            document.getElementById('datetime-panel').textContent = `${dateString} - ${timeString}`;
+                        }
+
+                        setInterval(updateDateTime, 1000);
+                    </script>
+                </body>
+                </html>
